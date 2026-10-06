@@ -1,0 +1,393 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Visualization</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <style>
+        .viz { max-width: 1200px; margin: 0 auto; padding: 16px; font-family: system-ui, sans-serif; color: #1c2430; }
+        .viz-top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0 16px; }
+        .viz-top input, .viz-top select, .viz-top button,
+        .vc-controls select, .vc-controls input { padding: 6px 8px; border: 1px solid #b9c2cf; border-radius: 4px; font: inherit; background: #fff; }
+        .viz button { cursor: pointer; }
+        .btn-main { background: #1f4e79; color: #070707; border-color: #1f4e79 !important; }
+        .btn-main:disabled { opacity: .6; cursor: wait; }
+        .summary_bar { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 12px; font-size: .95rem; }
+        .chart_grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(520px, 1fr)); gap: 16px; }
+        .chart_card { border: 1px solid #c9d1dc; border-radius: 6px; padding: 12px; background: #fff; }
+        .vc-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 10px; }
+        .vc-controls label { display: flex; flex-direction: column; font-size: .8rem; gap: 2px; color: #4a5565; }
+        .vc-controls .vc-title { grid-column: 1 / -1; }
+        .vc-actions { display: flex; gap: 8px; margin-top: 8px; }
+        .vc-actions button { padding: 4px 10px; border: 1px solid #b9c2cf; border-radius: 4px; background: #f4f6f9; }
+        .vc-canvas { min-height: 80px; }
+        .vc-canvas img { display: block; width: 100%; height: auto; }
+        .vc-insight { display: flex; flex-direction: column; gap: 2px; font-size: .8rem; color: #4a5565; margin-top: 8px; }
+        .vc-insight textarea { width: 100%; min-height: 84px; resize: vertical; padding: 8px; border: 1px solid #b9c2cf; border-radius: 4px; font: .9rem/1.4 system-ui, sans-serif; color: #1c2430; box-sizing: border-box; }
+        .vc-note { font-size: .85rem; color: #a33; margin: 6px 0 0; min-height: 1em; }
+        .empty { color: #4a5565; }
+        @media (max-width: 600px) { .chart_grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+
+<body>
+<div class="viz">
+    <a href="{% url 'import_file' %}">Back</a>
+    <h1>Data Visualization</h1>
+
+    {% if error %}<p style="color: red;">{{ error }}</p>{% endif %}
+    <p id="viz_error" style="color: red;" hidden></p>
+
+    {% if data %}
+        <div class="summary_bar">
+            <span>Total rows: {{ total_rows }}</span>
+            <span>Columns: {{ columns|join:", " }}</span>
+        </div>
+
+        <div class="viz-top">
+            <button type="button" id="add_chart" class="btn-main">Add chart</button>
+
+            <select id="suggested_comparison">
+                <option value="">Add a suggested chart</option>
+                {% for s in suggestions %}
+                    <option value="{{ forloop.counter0 }}">{{ s.label }} ({{ s.chart_type }})</option>
+                {% endfor %}
+            </select>
+
+            <input type="text" id="report_title" placeholder="PDF report title" value="Data Visualization Report">
+            <button type="button" id="export_pdf" class="btn-main">Download PDF</button>
+        </div>
+
+        <div class="chart_grid" id="chart_grid"></div>
+        <p class="empty" id="empty_msg" hidden>No charts yet.</p>
+
+        {% csrf_token %}
+        {{ data|json_script:"viz-data" }}
+        {{ columns|json_script:"viz-columns" }}
+        {{ suggestions|json_script:"viz-suggestions" }}
+    {% else %}
+        <p class="importp">No data loaded yet. Import a file first.</p>
+    {% endif %}
+</div>
+
+{% if data %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(function () {
+    function showError(msg) {
+        const el = document.getElementById("viz_error");
+        el.textContent = msg;
+        el.hidden = false;
+        console.error(msg);
+    }
+    window.addEventListener("error", e => showError("Script error: " + e.message));
+
+    function readJson(id, fallback) {
+        const el = document.getElementById(id);
+        if (!el) return fallback;
+        const text = el.textContent;
+        try { return JSON.parse(text); }
+        catch (err) {
+            try { return JSON.parse(text.replace(/\bNaN\b/g, "null").replace(/-?\bInfinity\b/g, "null")); }
+            catch (err2) { showError("Could not read " + id + ": " + err2.message); return fallback; }
+        }
+    }
+
+    if (!window.jspdf) showError("jsPDF did not load (check your internet connection or ad blocker).");
+
+    const DATA = readJson("viz-data", []);
+    const COLUMNS = readJson("viz-columns", []);
+    const SUGGESTIONS = readJson("viz-suggestions", []);
+
+    const MAX_RAW_POINTS = 500;
+    const CSRF = document.querySelector("[name=csrfmiddlewaretoken]").value;
+
+    const grid = document.getElementById("chart_grid");
+    const emptyMsg = document.getElementById("empty_msg");
+    const charts = new Map();
+    let nextId = 1;
+
+    const isNum = v => v !== null && v !== "" && v !== undefined && !isNaN(Number(v));
+    const options = (list, selected, blank) =>
+        (blank ? `<option value="">${blank}</option>` : "") +
+        list.map(([v, t]) => `<option value="${esc(v)}"${v === selected ? " selected" : ""}>${esc(t)}</option>`).join("");
+    function esc(s) {
+        return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+    }
+
+    function addChart(cfg) {
+        cfg = Object.assign({ x: "", y: "", type: "bar", agg: "auto", title: "" }, cfg || {});
+        const id = nextId++;
+        const card = document.createElement("div");
+        card.className = "chart_card";
+        card.dataset.id = id;
+        const cols = COLUMNS.map(c => [c, c]);
+        card.innerHTML = `
+            <div class="vc-controls">
+                <label class="vc-title">Title
+                    <input type="text" data-k="title" value="${esc(cfg.title)}" placeholder="Chart title">
+                </label>
+                <label>X axis
+                    <select data-k="x">${options(cols, cfg.x, "None")}</select>
+                </label>
+                <label>Y axis
+                    <select data-k="y">${options(cols, cfg.y, "None")}</select>
+                </label>
+                <label>Chart type
+                    <select data-k="type">${options([
+                        ["bar", "Bar"], ["line", "Line"], ["pie", "Pie"], ["scatter", "Scatter"]], cfg.type)}</select>
+                </label>
+                <label>Combine rows
+                    <select data-k="agg">${options([
+                        ["auto", "Auto"], ["none", "Each row"], ["sum", "Sum"],
+                        ["mean", "Average"], ["count", "Count"]], cfg.agg)}</select>
+                </label>
+            </div>
+            <div class="vc-canvas"><img alt="Chart" hidden></div>
+            <p class="vc-note"></p>
+            <label class="vc-insight">Insight (editable)
+                <textarea data-insight placeholder="Written insight for this chart"></textarea>
+            </label>
+            <div class="vc-actions">
+                <button type="button" data-act="regenerate">Regenerate insight</button>
+                <button type="button" data-act="duplicate">Duplicate</button>
+                <button type="button" data-act="remove">Remove</button>
+            </div>`;
+        grid.appendChild(card);
+        charts.set(id, { card, seq: 0, timer: null, ready: false, edited: !!cfg.insight });
+        if (cfg.insight) card.querySelector("[data-insight]").value = cfg.insight;
+        render(id);
+        updateEmpty();
+        return id;
+    }
+
+    function readCfg(card) {
+        const cfg = {};
+        card.querySelectorAll("[data-k]").forEach(el => cfg[el.dataset.k] = el.value);
+        return cfg;
+    }
+
+    function buildData(cfg) {
+        const { x, y, type } = cfg;
+        if (!x) return { note: "Pick an X axis to draw this chart." };
+
+        if (type === "scatter") {
+            if (!y) return { note: "Scatter plots need both X and Y axes." };
+            const pts = DATA.filter(r => isNum(r[x]) && isNum(r[y]))
+                            .map(r => ({ x: Number(r[x]), y: Number(r[y]) }));
+            if (!pts.length) return { note: "X and Y must be numeric columns for a scatter plot." };
+            return { points: pts };
+        }
+
+        let agg = cfg.agg;
+        if (agg === "auto") agg = type === "line" ? "none" : (y ? "sum" : "count");
+        if (!y && agg !== "count") agg = "count";
+
+        if (agg === "none") {
+            const rows = DATA.filter(r => isNum(r[y])).slice(0, MAX_RAW_POINTS);
+            if (!rows.length) return { note: "Y must be a numeric column." };
+            const note = DATA.length > MAX_RAW_POINTS ? `Showing the first ${MAX_RAW_POINTS} rows.` : "";
+            return { labels: rows.map(r => String(r[x])), values: rows.map(r => Number(r[y])), note };
+        }
+
+        const groups = new Map();
+        for (const r of DATA) {
+            const key = String(r[x]);
+            const g = groups.get(key) || { sum: 0, n: 0 };
+            if (agg === "count") g.n++;
+            else if (isNum(r[y])) { g.sum += Number(r[y]); g.n++; }
+            groups.set(key, g);
+        }
+        if (agg !== "count" && ![...groups.values()].some(g => g.n)) {
+            return { note: "Y must be a numeric column for sum or average." };
+        }
+        const labels = [...groups.keys()];
+        const values = labels.map(k => {
+            const g = groups.get(k);
+            return agg === "count" ? g.n : agg === "mean" ? (g.n ? g.sum / g.n : 0) : g.sum;
+        });
+        return { labels, values, agg };
+    }
+
+    function fmt(n) {
+        return Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    }
+
+    function makeInsight(cfg, d) {
+        if (d.points) {
+            const p = d.points, n = p.length;
+            const mx = p.reduce((a, b) => a + b.x, 0) / n;
+            const my = p.reduce((a, b) => a + b.y, 0) / n;
+            let sxy = 0, sxx = 0, syy = 0;
+            p.forEach(q => { sxy += (q.x - mx) * (q.y - my); sxx += (q.x - mx) ** 2; syy += (q.y - my) ** 2; });
+            let t = `This scatter plot compares ${cfg.y} with ${cfg.x} across ${n} rows. `;
+            if (sxx && syy) {
+                const r = sxy / Math.sqrt(sxx * syy), a = Math.abs(r);
+                const strength = a >= 0.7 ? "strong" : a >= 0.4 ? "moderate" : "weak";
+                t += `The correlation is ${r.toFixed(2)}, which is a ${strength} ${r >= 0 ? "positive" : "negative"} relationship.`;
+            } else {
+                t += "One of the columns has no variation, so a correlation cannot be computed.";
+            }
+            return t;
+        }
+        const L = d.labels, V = d.values, n = V.length;
+        const measure = cfg.y || "count";
+        let maxI = 0, minI = 0, total = 0;
+        V.forEach((v, i) => { if (v > V[maxI]) maxI = i; if (v < V[minI]) minI = i; total += v; });
+        let t = `This ${cfg.type} chart shows ${measure} by ${cfg.x} across ${n} ${n === 1 ? "item" : "items"}. `;
+        t += `The highest is ${L[maxI]} (${fmt(V[maxI])}) and the lowest is ${L[minI]} (${fmt(V[minI])}). The average is ${fmt(total / n)}.`;
+        if (cfg.type === "pie" && total > 0 && V.every(v => v >= 0)) {
+            t += ` ${L[maxI]} makes up ${(V[maxI] / total * 100).toFixed(1)}% of the total.`;
+        }
+        if (cfg.type === "line" && n > 1) {
+            const change = V[n - 1] - V[0];
+            t += ` From ${L[0]} to ${L[n - 1]}, the value ${change >= 0 ? "rose" : "fell"} by ${fmt(Math.abs(change))}.`;
+        }
+        return t;
+    }
+
+    async function fetchChart(entry, seq, payload) {
+        const img = entry.card.querySelector("img");
+        const note = entry.card.querySelector(".vc-note");
+        try {
+            const res = await fetch(window.location.pathname, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+                body: JSON.stringify(payload)
+            });
+            const out = await res.json();
+            if (seq !== entry.seq) return; 
+            if (!res.ok) throw new Error(out.error || "Could not draw the chart.");
+            img.src = "data:image/png;base64," + out.image;
+            img.hidden = false;
+            entry.ready = true;
+        } catch (err) {
+            if (seq !== entry.seq) return;
+            img.hidden = true;
+            note.textContent = err.message;
+        }
+    }
+
+    function render(id) {
+        const entry = charts.get(id);
+        if (!entry) return;
+        const cfg = readCfg(entry.card);
+        const note = entry.card.querySelector(".vc-note");
+        const img = entry.card.querySelector("img");
+        const box = entry.card.querySelector("[data-insight]");
+
+        const seq = ++entry.seq;
+        clearTimeout(entry.timer);
+        entry.ready = false;
+
+        const d = buildData(cfg);
+        note.textContent = d.note || "";
+        if (!d.labels && !d.points) {
+            img.hidden = true;
+            if (!entry.edited) box.value = "";
+            return;
+        }
+        if (!entry.edited) box.value = makeInsight(cfg, d);
+
+        const title = cfg.title || (cfg.y ? `${cfg.y} by ${cfg.x}` : `${cfg.x} count`);
+        const payload = { type: cfg.type, title, x: cfg.x, y: cfg.y, labels: d.labels, values: d.values, points: d.points };
+
+        entry.timer = setTimeout(() => fetchChart(entry, seq, payload), 250);
+    }
+
+    grid.addEventListener("input", e => {
+        const card = e.target.closest(".chart_card");
+        if (!card) return;
+        const id = Number(card.dataset.id);
+        if (e.target.matches("[data-insight]")) { charts.get(id).edited = true; return; }
+        if (e.target.dataset.k) render(id);
+    });
+
+    grid.addEventListener("click", e => {
+        const btn = e.target.closest("[data-act]");
+        if (!btn) return;
+        const card = btn.closest(".chart_card");
+        const id = Number(card.dataset.id);
+        if (btn.dataset.act === "remove") {
+            clearTimeout(charts.get(id).timer);
+            card.remove();
+            charts.delete(id);
+            updateEmpty();
+        } else if (btn.dataset.act === "duplicate") {
+            const cfg = readCfg(card);
+            if (charts.get(id).edited) cfg.insight = card.querySelector("[data-insight]").value;
+            addChart(cfg);
+        } else if (btn.dataset.act === "regenerate") {
+            charts.get(id).edited = false;
+            render(id);
+        }
+    });
+
+    function updateEmpty() { emptyMsg.hidden = charts.size > 0; }
+
+    document.getElementById("add_chart").addEventListener("click", () => {
+        addChart({ x: COLUMNS[0] || "", y: "", type: "bar" });
+    });
+
+    document.getElementById("suggested_comparison").addEventListener("change", e => {
+        const s = SUGGESTIONS[Number(e.target.value)];
+        e.target.value = "";
+        if (s) addChart({ x: s.x, y: s.y, type: s.chart_type, title: s.label });
+    });
+
+    document.getElementById("export_pdf").addEventListener("click", e => {
+        const btn = e.currentTarget;
+        const ready = [...grid.querySelectorAll(".chart_card")]
+            .map(c => charts.get(Number(c.dataset.id)))
+            .filter(en => en && en.ready);
+        if (!ready.length) { alert("Add at least one chart with an X axis first."); return; }
+
+        btn.disabled = true;
+        try {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ unit: "mm", format: "a4" });
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const margin = 15;
+            const imgW = pageW - margin * 2;
+            const reportTitle = document.getElementById("report_title").value || "Data Visualization Report";
+
+            pdf.setFontSize(16);
+            pdf.text(reportTitle, margin, margin + 4);
+            pdf.setFontSize(9);
+            pdf.text(new Date().toLocaleString() + "  |  " + DATA.length + " rows", margin, margin + 10);
+            let y = margin + 18;
+
+            ready.forEach(en => {
+                const img = en.card.querySelector("img");
+                const imgH = imgW * (img.naturalHeight / img.naturalWidth);
+                const text = en.card.querySelector("[data-insight]").value.trim();
+                pdf.setFontSize(10);
+                const lines = text ? pdf.splitTextToSize(text, imgW) : [];
+                const textH = lines.length ? lines.length * 4.6 + 3 : 0;
+                if (y + imgH + textH > pageH - margin) { pdf.addPage(); y = margin; }
+                pdf.addImage(img.src, "PNG", margin, y, imgW, imgH);
+                y += imgH + 2;
+                if (lines.length) { pdf.text(lines, margin, y + 4); y += textH; }
+                y += 8;
+            });
+
+            pdf.save("charts_report.pdf");
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    if (SUGGESTIONS.length) {
+        const s = SUGGESTIONS[0];
+        addChart({ x: s.x, y: s.y, type: s.chart_type, title: s.label });
+    } else {
+        addChart({ x: COLUMNS[0] || "", y: "", type: "bar" });
+    }
+})();
+</script>
+{% endif %}
+</body>
+</html>

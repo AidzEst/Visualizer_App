@@ -1,0 +1,69 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Cleaning</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div id="clean_box">
+        <h1 class="importh1">Clean Your Data</h1>
+
+        {% if file_name %}
+            <p class="importp">File: {{ file_name }} &middot; {{ original_shape }}</p>
+        {% else %}
+            <p class="importp">No file loaded yet.</p>
+        {% endif %}
+
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+
+        {% if success %}
+            <p class="success">{{ success }} New shape: {{ cleaned_shape }}</p>
+        {% endif %}
+
+        {% if columns %}
+        <form method="POST">
+            {% csrf_token %}
+            <fieldset>
+                <legend>Cleaning options</legend>
+
+                <label><input type="checkbox" name="clean_options" value="strip_whitespace"> Strip whitespace from text columns</label>
+                <label><input type="checkbox" name="clean_options" value="standardize_headers"> Standardize column headers (lowercase, underscores)</label>
+                <label><input type="checkbox" name="clean_options" value="drop_duplicates"> Drop duplicate rows</label>
+                <label><input type="checkbox" name="clean_options" value="drop_empty_rows"> Drop fully empty rows</label>
+                <label><input type="checkbox" name="clean_options" value="drop_empty_cols"> Drop fully empty columns</label>
+
+                <p>Missing values:</p>
+                <label><input type="radio" name="clean_options" value="fill_missing_zero"> Fill with 0</label>
+                <label><input type="radio" name="clean_options" value="fill_missing_mean"> Fill with column mean (numeric only)</label>
+                <label><input type="radio" name="clean_options" value="drop_missing_rows"> Drop rows with any missing values</label>
+            </fieldset>
+
+            <button type="submit">Apply Cleaning</button>
+        </form>
+        {% endif %}
+
+        {% if preview %}
+            <h2>Preview (first 10 rows)</h2>
+            <div class="table-scroll">
+                {{ preview|safe }}
+            </div>
+        {% endif %}
+
+        {% if applied %}
+            <p class="importp">Applied: {{ applied|join:", " }}</p>
+        {% endif %}
+
+        {% if success %}
+        <form method="GET" action="{% url 'download_clean' %}" style="display:inline;">
+            <button type="submit">Download</button>
+        </form>
+        <a href="{% url 'visualize' %}"><button type="button">Visualize</button></a>
+        {% endif %}
+    </div>
+</body>
+</html>

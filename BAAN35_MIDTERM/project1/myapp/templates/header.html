@@ -1,0 +1,41 @@
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Visualization</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <style>
+        nav {
+            background-color: #f1f5f9;
+            padding: 10px;
+        }
+
+        nav ul {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+        }
+
+        nav ul li {
+            margin-right: 20px;
+        }
+
+        nav ul li a {
+            text-decoration: none;
+            color: #2563eb;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <nav>
+        <ul>
+            <li><a href="{% url 'import_file' %}">Import</a></li>
+            <li><a href="{% url 'clean' %}">Clean</a></li>
+            <li><a href="{% url 'visualize' %}">Visualize</a></li>
+        </ul>
+    </nav>
+</body>

@@ -1,0 +1,50 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+
+    <div>
+        <a href="{% url 'clean' %}"> Data Cleaning </a>
+    </div>
+    <div id = "upload_box">
+        <h1 class = 'importh1'>Data Visualization</h1>
+        <p class = 'importp'> Upload your data file to visualize it. Supported formats: .xlsx, .csv</p>
+
+
+        <div id="loader-container">
+            <div class="spinner"></div>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+        <label for="fileinput" id="fileBox">
+                <pre>Choose a file</pre>
+                <input type="file" accept=".xlsx,.csv" name="uploaded_file" id="fileinput">
+            </label>
+            
+            <button type="submit">Upload</button>
+        </form>
+    </div>
+    <script>
+        const fileInput = document.getElementById('fileinput');
+        const fileBox = document.getElementById('fileBox');
+        const filecontent = fileBox.querySelector('pre');
+
+        fileInput.addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (!file) {
+            filecontent.textContent = "Choose a file";
+            return;
+        }
+
+        filecontent.textContent = file.name;
+        })
+    </script>
+</body>
+</html>
