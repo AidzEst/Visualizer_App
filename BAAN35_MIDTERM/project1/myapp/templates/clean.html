@@ -1,14 +1,48 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Cleaning</title>
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
-</head>
-<body>
-    <div id="clean_box">
+{% extends 'header.html' %}
+
+{% block extra_head %}
+
+<style>
+        #submit-btn {
+            display: block;
+            width: 100%;
+            margin-top: 20px;
+            padding: 12px;
+            background-color: #fdc22f;
+            border: none;
+            border-radius: 5px;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .option-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        #item-options {
+            width: 100%;
+            max-width: 360px;       
+            padding: 10px 30px 35px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            background-color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #item-options1{
+            padding-top: 0;
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+        }
+</style>
+{% endblock %}
+{% block content %}
+  <div id="clean_box">
         <h1 class="importh1">Clean Your Data</h1>
 
         {% if file_name %}
@@ -28,30 +62,26 @@
         {% if columns %}
         <form method="POST">
             {% csrf_token %}
-            <fieldset>
-                <legend>Cleaning options</legend>
+            
+            <div id = "item-options">
+                <b>Cleaning options</b>
+                <div class = "option-group">
+                    <label><input type="checkbox" name="clean_options" value="strip_whitespace"> Strip whitespace from text columns</label>
+                    <label><input type="checkbox" name="clean_options" value="standardize_headers"> Standardize column headers (lowercase, underscores)</label>
+                    <label><input type="checkbox" name="clean_options" value="drop_duplicates"> Drop duplicate rows</label>
+                    <label><input type="checkbox" name="clean_options" value="drop_empty_rows"> Drop fully empty rows</label>
+                    <label><input type="checkbox" name="clean_options" value="drop_empty_cols"> Drop fully empty columns</label>
+                </div>
 
-                <label><input type="checkbox" name="clean_options" value="strip_whitespace"> Strip whitespace from text columns</label>
-                <label><input type="checkbox" name="clean_options" value="standardize_headers"> Standardize column headers (lowercase, underscores)</label>
-                <label><input type="checkbox" name="clean_options" value="drop_duplicates"> Drop duplicate rows</label>
-                <label><input type="checkbox" name="clean_options" value="drop_empty_rows"> Drop fully empty rows</label>
-                <label><input type="checkbox" name="clean_options" value="drop_empty_cols"> Drop fully empty columns</label>
-
+                <div class = "option-group">
                 <p>Missing values:</p>
                 <label><input type="radio" name="clean_options" value="fill_missing_zero"> Fill with 0</label>
                 <label><input type="radio" name="clean_options" value="fill_missing_mean"> Fill with column mean (numeric only)</label>
                 <label><input type="radio" name="clean_options" value="drop_missing_rows"> Drop rows with any missing values</label>
-            </fieldset>
-
-            <button type="submit">Apply Cleaning</button>
-        </form>
-        {% endif %}
-
-        {% if preview %}
-            <h2>Preview (first 10 rows)</h2>
-            <div class="table-scroll">
-                {{ preview|safe }}
+                </div>
+                <button type="submit" id="submit-btn">Apply Cleaning</button>
             </div>
+        </form>
         {% endif %}
 
         {% if applied %}
@@ -59,11 +89,14 @@
         {% endif %}
 
         {% if success %}
-        <form method="GET" action="{% url 'download_clean' %}" style="display:inline;">
-            <button type="submit">Download</button>
-        </form>
-        <a href="{% url 'visualize' %}"><button type="button">Visualize</button></a>
+        <div id="item-options1">
+            <form method="GET" action="{% url 'download_clean' %}" style="display:inline;">
+                <button type="submit" id = "submit-btn">Download</button>
+            </form>
+            <a href="{% url 'visualize' %}"><button type="button" id = "submit-btn">Visualize</button></a>
+        </div>
         {% endif %}
     </div>
-</body>
-</html>
+
+
+{% endblock %}

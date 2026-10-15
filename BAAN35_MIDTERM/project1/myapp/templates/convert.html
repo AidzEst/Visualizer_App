@@ -1,0 +1,152 @@
+{% extends 'header.html' %}
+
+{% block extra_head %}
+<style>
+    *, *::before, *::after {
+    box-sizing: border-box; 
+    }
+
+    #upload_wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    #upload_box {
+        width: 100%;
+        max-width: 500px;       
+        padding: 10px 30px 35px;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        background-color: #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    #fileBox {
+        width: 300px;
+        height: 200px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        cursor: pointer;
+
+        border: 2px dashed #cacaca;
+        background-color: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0px 48px 35px -48px rgba(0,0,0,0.1);
+        font-family: Arial;
+        overflow-wrap: anywhere;
+    }
+
+    .importh1 {
+    font-size: 1rem;
+    margin-bottom: 10px;
+    }
+
+    .importp {
+    font-size: 0.7rem;
+    margin-bottom: 20px;
+}
+
+#fileinput {
+    display: none;
+}
+
+        #submit-btn {
+            display: block;
+            width: 100%;
+            margin-top: 20px;
+            padding: 12px;
+            background-color: #fdc22f;
+            border: none;
+            border-radius: 5px;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+    /* --- format dropdown (new) --- */
+    #format-label {
+        display: block;
+        margin-top: 20px;
+        font-family: Arial;
+        font-size: 0.8rem;
+    }
+
+    #output-format {
+        display: block;
+        width: 100%;
+        margin-top: 6px;
+        padding: 12px;
+        border: 1px solid #cacaca;
+        border-radius: 5px;
+        background-color: #fff;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+    #output-format:focus-visible {
+        outline: 2px solid #fdc22f;
+    }
+
+    .convert-error {
+        color: #c0392b;
+        font-size: 0.8rem;
+        margin-bottom: 10px;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+
+    <div id = "upload_wrapper">
+        <div id = "upload_box">
+            <h1 class = 'importh1'>File Conversion</h1>
+            <p class = 'importp'> Upload your data file and choose a format to convert it to. Supported formats: .xlsx, .csv, .json</p>
+
+            {% if error %}
+                <p class="convert-error" role="alert">{{ error }}</p>
+            {% endif %}
+
+            <div id="loader-container">
+                <div class="spinner"></div>
+            </div>
+
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+            <label for="fileinput" id="fileBox">
+                    <pre>Choose a file</pre>
+                    <input type="file" accept=".xlsx,.csv,.json" name="uploaded_file" id="fileinput">
+                </label>
+
+                <label for="output-format" id="format-label">Convert to</label>
+                <select name="output_format" id="output-format">
+                    <option value="csv">CSV (.csv)</option>
+                    <option value="xlsx">Excel (.xlsx)</option>
+                    <option value="json">JSON (.json)</option>
+                </select>
+                
+                <button id = "submit-btn" type="submit">Download</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        const fileInput = document.getElementById('fileinput');
+        const fileBox = document.getElementById('fileBox');
+        const filecontent = fileBox.querySelector('pre');
+
+        fileInput.addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (!file) {
+            filecontent.textContent = "Choose a file";
+            return;
+        }
+
+        filecontent.textContent = file.name;
+        })
+    </script>
+{% endblock %}

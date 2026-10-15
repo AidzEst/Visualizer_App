@@ -1,35 +1,98 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
-</head>
-<body>
+{% extends 'header.html' %}
 
-    <div>
-        <a href="{% url 'clean' %}"> Data Cleaning </a>
-    </div>
-    <div id = "upload_box">
-        <h1 class = 'importh1'>Data Visualization</h1>
-        <p class = 'importp'> Upload your data file to visualize it. Supported formats: .xlsx, .csv</p>
+{% block extra_head %}
+<style>
+    *, *::before, *::after {
+    box-sizing: border-box; 
+    }
+
+    #upload_wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    #upload_box {
+        width: 100%;
+        max-width: 500px;       
+        padding: 10px 30px 35px;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        background-color: #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    #fileBox {
+        width: 300px;
+        height: 200px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        cursor: pointer;
+
+        border: 2px dashed #cacaca;
+        background-color: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0px 48px 35px -48px rgba(0,0,0,0.1);
+        font-family: Arial;
+        overflow-wrap: anywhere;
+    }
+
+    .importh1 {
+    font-size: 1rem;
+    margin-bottom: 10px;
+    }
+
+    .importp {
+    font-size: 0.7rem;
+    margin-bottom: 20px;
+}
+
+#fileinput {
+    display: none;
+}
+
+        #submit-btn {
+            display: block;
+            width: 100%;
+            margin-top: 20px;
+            padding: 12px;
+            background-color: #fdc22f;
+            border: none;
+            border-radius: 5px;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+</style>
+{% endblock %}
+
+{% block content %}
+
+    <div id = "upload_wrapper">
+        <div id = "upload_box">
+            <h1 class = 'importh1'>Data Visualization</h1>
+            <p class = 'importp'> Upload your data file to visualize it. Supported formats: .xlsx, .csv, .json</p>
 
 
-        <div id="loader-container">
-            <div class="spinner"></div>
+            <div id="loader-container">
+                <div class="spinner"></div>
+            </div>
+
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+            <label for="fileinput" id="fileBox">
+                    <pre>Choose a file</pre>
+                    <input type="file" accept=".xlsx,.csv,.json" name="uploaded_file" id="fileinput">
+                </label>
+                
+                <button id = "submit-btn" type="submit">Upload</button>
+            </form>
         </div>
-
-        <form method="POST" enctype="multipart/form-data">
-            {% csrf_token %}
-        <label for="fileinput" id="fileBox">
-                <pre>Choose a file</pre>
-                <input type="file" accept=".xlsx,.csv" name="uploaded_file" id="fileinput">
-            </label>
-            
-            <button type="submit">Upload</button>
-        </form>
     </div>
     <script>
         const fileInput = document.getElementById('fileinput');
@@ -46,5 +109,4 @@
         filecontent.textContent = file.name;
         })
     </script>
-</body>
-</html>
+{% endblock %}

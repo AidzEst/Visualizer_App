@@ -1,11 +1,7 @@
+{% extends 'header.html' %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Visualization</title>
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+{% block extra_head %}
     <style>
         .viz { max-width: 1200px; margin: 0 auto; padding: 16px; font-family: system-ui, sans-serif; color: #1c2430; }
         .viz-top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0 16px; }
@@ -14,6 +10,8 @@
         .viz button { cursor: pointer; }
         .btn-main { background: #1f4e79; color: #070707; border-color: #1f4e79 !important; }
         .btn-main:disabled { opacity: .6; cursor: wait; }
+        .cover-pick { display: flex; flex-direction: column; font-size: .8rem; color: #4a5565; gap: 2px; }
+        .cover-pick .cover-light { flex-direction: row; align-items: center; gap: 4px; }
         .summary_bar { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 12px; font-size: .95rem; }
         .chart_grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(520px, 1fr)); gap: 16px; }
         .chart_card { border: 1px solid #c9d1dc; border-radius: 6px; padding: 12px; background: #fff; }
@@ -29,23 +27,33 @@
         .vc-note { font-size: .85rem; color: #a33; margin: 6px 0 0; min-height: 1em; }
         .empty { color: #4a5565; }
         @media (max-width: 600px) { .chart_grid { grid-template-columns: 1fr; } }
-    </style>
-</head>
+        
+        #back_btn {
+            display: block;
+            width: 7%;
+            margin-top: 20px;
+            padding: 12px;
+            background-color: #fdc22f;
+            border: none;
+            border-radius: 5px;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+        }
 
-<body>
+    </style>
+
+{% endblock %}
+
+{% block content %}
 <div class="viz">
-    <a href="{% url 'import_file' %}">Back</a>
+    <a href="{% url 'import_file' %}" id="back_btn">Back</a>
     <h1>Data Visualization</h1>
 
     {% if error %}<p style="color: red;">{{ error }}</p>{% endif %}
     <p id="viz_error" style="color: red;" hidden></p>
 
     {% if data %}
-        <div class="summary_bar">
-            <span>Total rows: {{ total_rows }}</span>
-            <span>Columns: {{ columns|join:", " }}</span>
-        </div>
-
         <div class="viz-top">
             <button type="button" id="add_chart" class="btn-main">Add chart</button>
 
@@ -56,12 +64,23 @@
                 {% endfor %}
             </select>
 
-            <input type="text" id="report_title" placeholder="PDF report title" value="Data Visualization Report">
+            <input type="text" id="report_title" placeholder="PDF report title" value="ATENA SUMMARY REPORT">
+
+            <!-- Prefilled with the logged-in name from the session. Editable. -->
+            <input type="text" id="prepared_by" placeholder="Prepared by" value="{% firstof user_name request.session.name %}">
+
             <button type="button" id="export_pdf" class="btn-main">Download PDF</button>
         </div>
 
         <div class="chart_grid" id="chart_grid"></div>
         <p class="empty" id="empty_msg" hidden>No charts yet.</p>
+
+        <label class="vc-insight">Conclusion / Overall summary (built from the chart insights, editable, included in the PDF)
+            <textarea id="overall_summary" placeholder="The overall summary appears here once your charts have insights"></textarea>
+        </label>
+        <div class="vc-actions">
+            <button type="button" id="regenerate_summary">Regenerate summary</button>
+        </div>
 
         {% csrf_token %}
         {{ data|json_script:"viz-data" }}
@@ -108,6 +127,24 @@
     const emptyMsg = document.getElementById("empty_msg");
     const charts = new Map();
     let nextId = 1;
+
+    const overallBox = document.getElementById("overall_summary");
+    let overallEdited = false;
+
+    function makeOverall() {
+        const items = [...grid.querySelectorAll(".chart_card")]
+            .map(c => ({ title: chartTitle(c), text: c.querySelector("[data-insight]").value.trim() }))
+            .filter(i => i.text);
+        if (!items.length) return "";
+        const intro = `This report summarizes ${items.length} ${items.length === 1 ? "chart" : "charts"} ` +
+                      `built from ${DATA.length} rows and ${COLUMNS.length} columns.`;
+        return intro + "\n\n" + items.map((it, i) => `${i + 1}. ${it.title}: ${it.text}`).join("\n\n");
+    }
+
+    function updateOverall() {
+        if (overallEdited) return;
+        overallBox.value = makeOverall();
+    }
 
     const isNum = v => v !== null && v !== "" && v !== undefined && !isNaN(Number(v));
     const options = (list, selected, blank) =>
@@ -287,9 +324,11 @@
         if (!d.labels && !d.points) {
             img.hidden = true;
             if (!entry.edited) box.value = "";
+            updateOverall();
             return;
         }
         if (!entry.edited) box.value = makeInsight(cfg, d);
+        updateOverall();
 
         const title = cfg.title || (cfg.y ? `${cfg.y} by ${cfg.x}` : `${cfg.x} count`);
         const payload = { type: cfg.type, title, x: cfg.x, y: cfg.y, labels: d.labels, values: d.values, points: d.points };
@@ -301,7 +340,7 @@
         const card = e.target.closest(".chart_card");
         if (!card) return;
         const id = Number(card.dataset.id);
-        if (e.target.matches("[data-insight]")) { charts.get(id).edited = true; return; }
+        if (e.target.matches("[data-insight]")) { charts.get(id).edited = true; updateOverall(); return; }
         if (e.target.dataset.k) render(id);
     });
 
@@ -314,6 +353,7 @@
             clearTimeout(charts.get(id).timer);
             card.remove();
             charts.delete(id);
+            updateOverall();
             updateEmpty();
         } else if (btn.dataset.act === "duplicate") {
             const cfg = readCfg(card);
@@ -327,6 +367,13 @@
 
     function updateEmpty() { emptyMsg.hidden = charts.size > 0; }
 
+    overallBox.addEventListener("input", () => { overallEdited = true; });
+
+    document.getElementById("regenerate_summary").addEventListener("click", () => {
+        overallEdited = false;
+        updateOverall();
+    });
+
     document.getElementById("add_chart").addEventListener("click", () => {
         addChart({ x: COLUMNS[0] || "", y: "", type: "bar" });
     });
@@ -337,7 +384,81 @@
         if (s) addChart({ x: s.x, y: s.y, type: s.chart_type, title: s.label });
     });
 
-    document.getElementById("export_pdf").addEventListener("click", e => {
+    function chartTitle(card) {
+        const cfg = readCfg(card);
+        return cfg.title || (cfg.y ? `${cfg.y} by ${cfg.x}` : `${cfg.x} count`);
+    }
+
+    const YELLOW = [253, 194, 47], HONEY = [248, 189, 5], ORANGE = [241, 112, 13], INK = [43, 26, 5];
+
+    const LOGO_URL = "{% static 'Images/logo (2).png' %}";
+
+    function loadCroppedLogo(url) {
+        return new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => {
+                try {
+                    const c = document.createElement("canvas");
+                    c.width = img.naturalWidth;
+                    c.height = img.naturalHeight;
+                    const ctx = c.getContext("2d");
+                    ctx.drawImage(img, 0, 0);
+                    const { data, width, height } = ctx.getImageData(0, 0, c.width, c.height);
+                    let minX = width, minY = height, maxX = -1, maxY = -1;
+                    for (let y = 0; y < height; y++) {
+                        for (let x = 0; x < width; x++) {
+                            const i = (y * width + x) * 4;
+                            const white = data[i] > 245 && data[i + 1] > 245 && data[i + 2] > 245;
+                            if (data[i + 3] > 20 && !white) {
+                                if (x < minX) minX = x;
+                                if (x > maxX) maxX = x;
+                                if (y < minY) minY = y;
+                                if (y > maxY) maxY = y;
+                            }
+                        }
+                    }
+                    if (maxX < 0) return resolve(null);
+                    const w = maxX - minX + 1, h = maxY - minY + 1;
+                    const out = document.createElement("canvas");
+                    out.width = w;
+                    out.height = h;
+                    out.getContext("2d").drawImage(c, minX, minY, w, h, 0, 0, w, h);
+                    resolve({ src: out.toDataURL("image/png"), w, h });
+                } catch (err) { resolve(null); }
+            };
+            img.onerror = () => resolve(null);
+            img.src = url;
+        });
+    }
+
+    /* Draws one flat-top hexagon (the honeycomb from the logo) */
+    function hexagon(pdf, cx, cy, r, color) {
+        const pts = [0, 1, 2, 3, 4, 5].map(k => [cx + r * Math.cos(k * Math.PI / 3), cy + r * Math.sin(k * Math.PI / 3)]);
+        const segs = pts.slice(1).map((p, i) => [p[0] - pts[i][0], p[1] - pts[i][1]]);
+        pdf.setFillColor(...color);
+        pdf.lines(segs, pts[0][0], pts[0][1], [1, 1], "F", true);
+    }
+
+    /* Yellow footer with the page number */
+    function drawFooter(pdf, pageW, pageH, p, total) {
+        pdf.setFillColor(...ORANGE);
+        pdf.rect(0, pageH - 11.5, pageW, 1.5, "F");
+        pdf.setFillColor(...YELLOW);
+        pdf.rect(0, pageH - 10, pageW, 10, "F");
+        pdf.setTextColor(...INK);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(9);
+        pdf.text(`Page ${p} of ${total}`, pageW / 2, pageH - 4, { align: "center" });
+    }
+
+    function dateStamp() {
+        const d = new Date();
+        return d.getFullYear() + "-" +
+            String(d.getMonth() + 1).padStart(2, "0") + "-" +
+            String(d.getDate()).padStart(2, "0");
+    }
+
+    document.getElementById("export_pdf").addEventListener("click", async e => {
         const btn = e.currentTarget;
         const ready = [...grid.querySelectorAll(".chart_card")]
             .map(c => charts.get(Number(c.dataset.id)))
@@ -345,6 +466,10 @@
         if (!ready.length) { alert("Add at least one chart with an X axis first."); return; }
 
         btn.disabled = true;
+
+        const logo = await loadCroppedLogo(LOGO_URL);
+        if (!logo) showError("Could not load the logo from the static folder (" + LOGO_URL + "). The PDF was made without it. Check the file name in LOGO_URL.");
+
         try {
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF({ unit: "mm", format: "a4" });
@@ -352,13 +477,68 @@
             const pageH = pdf.internal.pageSize.getHeight();
             const margin = 15;
             const imgW = pageW - margin * 2;
-            const reportTitle = document.getElementById("report_title").value || "Data Visualization Report";
+            const topY = margin;
+            const bottomY = pageH - 10 - 8;   // stops above the yellow footer
 
-            pdf.setFontSize(16);
-            pdf.text(reportTitle, margin, margin + 4);
-            pdf.setFontSize(9);
-            pdf.text(new Date().toLocaleString() + "  |  " + DATA.length + " rows", margin, margin + 10);
-            let y = margin + 18;
+            const reportTitle = document.getElementById("report_title").value.trim() || "ATENA SUMMARY REPORT";
+            const preparedBy = document.getElementById("prepared_by").value.trim();
+            const summary = document.getElementById("overall_summary").value.trim();
+            const longDate = new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+            const toc = [];
+
+            /* ---------- Page 1: cover ---------- */
+            /* yellow decoration: top band, bottom band, honeycomb */
+            pdf.setFillColor(...YELLOW);
+            pdf.rect(0, 0, pageW, 12, "F");
+            pdf.setFillColor(...ORANGE);
+            pdf.rect(0, 12, pageW, 2, "F");
+            pdf.setFillColor(...ORANGE);
+            pdf.rect(0, pageH - 11.5, pageW, 1.5, "F");
+            pdf.setFillColor(...YELLOW);
+            pdf.rect(0, pageH - 10, pageW, 10, "F");
+            hexagon(pdf, pageW - 42, pageH - 50, 9.3, YELLOW);
+            hexagon(pdf, pageW - 27, pageH - 58.66, 9.3, ORANGE);
+            hexagon(pdf, pageW - 27, pageH - 41.34, 9.3, HONEY);
+
+            /* logo right above the title */
+            let titleY = pageH / 3;
+            if (logo) {
+                const logoW = 110;
+                const logoH = logoW * (logo.h / logo.w);
+                const logoY = 38;
+                pdf.addImage(logo.src, "PNG", (pageW - logoW) / 2, logoY, logoW, logoH);
+                titleY = logoY + logoH + 22;
+            }
+
+            pdf.setTextColor(...INK);
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(26);
+            const titleLines = pdf.splitTextToSize(reportTitle, imgW);
+            pdf.text(titleLines, pageW / 2, titleY, { align: "center" });
+
+            let cy = titleY + titleLines.length * 11 + 2;
+            pdf.setDrawColor(...YELLOW);
+            pdf.setLineWidth(1.2);
+            pdf.line(pageW / 2 - 20, cy, pageW / 2 + 20, cy);
+
+            cy += 12;
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(14);
+            pdf.text(longDate, pageW / 2, cy, { align: "center" });
+
+            cy += 24;
+            pdf.text("Prepared By:", pageW / 2, cy, { align: "center" });
+            pdf.setFont("helvetica", "bold");
+            pdf.text(preparedBy, pageW / 2, cy + 9, { align: "center" });
+            pdf.setFont("helvetica", "normal");
+            pdf.setTextColor(0, 0, 0);
+
+            /* ---------- Page 2: reserved for the table of contents ---------- */
+            pdf.addPage();
+
+            /* ---------- Page 3+: charts ---------- */
+            pdf.addPage();
+            let y = topY;
 
             ready.forEach(en => {
                 const img = en.card.querySelector("img");
@@ -367,14 +547,55 @@
                 pdf.setFontSize(10);
                 const lines = text ? pdf.splitTextToSize(text, imgW) : [];
                 const textH = lines.length ? lines.length * 4.6 + 3 : 0;
-                if (y + imgH + textH > pageH - margin) { pdf.addPage(); y = margin; }
+                if (y + imgH + textH > bottomY) { pdf.addPage(); y = topY; }
+
+                toc.push({ title: chartTitle(en.card), page: pdf.internal.getNumberOfPages() });
+
                 pdf.addImage(img.src, "PNG", margin, y, imgW, imgH);
                 y += imgH + 2;
                 if (lines.length) { pdf.text(lines, margin, y + 4); y += textH; }
                 y += 8;
             });
 
-            pdf.save("charts_report.pdf");
+            /* ---------- Last: conclusion / overall summary ---------- */
+            if (summary) {
+                pdf.addPage();
+                toc.push({ title: "Conclusion / Overall Summary", page: pdf.internal.getNumberOfPages() });
+                pdf.setFontSize(14);
+                pdf.text("Conclusion / Overall Summary", margin, topY + 4);
+                pdf.setFontSize(10);
+                let sy = topY + 14;
+                pdf.splitTextToSize(summary, imgW).forEach(line => {
+                    if (sy > bottomY) { pdf.addPage(); sy = topY; }
+                    pdf.text(line, margin, sy);
+                    sy += 4.6;
+                });
+            }
+
+            /* ---------- Fill in the table of contents (page 2) ---------- */
+            pdf.setPage(2);
+            pdf.setFontSize(16);
+            pdf.text("Table of Contents", margin, topY + 4);
+            pdf.setFontSize(11);
+            let ty = topY + 16;
+            toc.forEach((item, i) => {
+                if (ty > bottomY) return;
+                const label = pdf.splitTextToSize(`${i + 1}. ${item.title}`, imgW - 20)[0];
+                pdf.text(label, margin, ty);
+                pdf.text(String(item.page), pageW - margin, ty, { align: "right" });
+                ty += 7;
+            });
+
+            /* ---------- Footer with page number on every page except the cover ---------- */
+            const totalPages = pdf.getNumberOfPages();
+            for (let p = 2; p <= totalPages; p++) {
+                pdf.setPage(p);
+                drawFooter(pdf, pageW, pageH, p, totalPages);
+            }
+            pdf.setTextColor(0, 0, 0);
+
+            const safeTitle = reportTitle.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "_") || "ATENA_SUMMARY_REPORT";
+            pdf.save(`${safeTitle}_${dateStamp()}.pdf`);
         } finally {
             btn.disabled = false;
         }
@@ -389,5 +610,5 @@
 })();
 </script>
 {% endif %}
-</body>
-</html>
+
+{% endblock %}

@@ -2,18 +2,28 @@ from django.shortcuts import render, redirect
 import matplotlib
 from django.http import HttpResponse, JsonResponse
 from matplotlib.backends.backend_pdf import PdfPages
+from django.contrib.auth.hashers import check_password, make_password
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 import io
+import os
 import base64
 import json
 import threading
 from .models import login_data
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 
 _plot_lock = threading.Lock()
 BAR_COLOR = '#1f4e79'
 MAX_CATEGORIES = 200
+
+OUTPUT_TYPES = {
+    "csv": "text/csv",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "json": "application/json",
+}
 
 
 #Charts
@@ -107,7 +117,7 @@ def get_scatter_plot(x, y, title, xlabel, ylabel, color='darkorange', figsize=(8
 
 #Page Views
 
-def login_view(request):
+def loginpage(request):
     if request.method == "POST":
         name = request.POST.get("username")
         password = request.POST.get("password")
@@ -124,6 +134,9 @@ def login_view(request):
             return render(request, "login.html", {"error": "User not found"})
 
     return render(request, "login.html")
+
+def convert_page(request):
+    return render(request, "convert.html")
 
 def clean(request):
     context = {}
@@ -226,12 +239,21 @@ def import_file(request):
             except Exception as e:
                 context['error'] = f"Something went wrong while processing the file: {e}"
                 return render(request, 'import.html', context)
+
+        elif filename.endswith('.json'):
+            try:
+                df = pd.read_json(uploaded_file, orient='records')
+            except Exception as e:
+                context['error'] = f"Something went wrong while processing the file: {e}"
+                return render(request, 'import.html', context)
+
         elif filename.endswith('.csv'):
             try:
                 df = pd.read_csv(uploaded_file)
             except Exception as e:
                 context['error'] = f"Something went wrong while processing the file: {e}"
                 return render(request, 'import.html', context)
+
         else:
             context['error'] = "Unsupported file type. Please upload a .xlsx or .csv file."
             return render(request, 'import.html', context)
@@ -368,3 +390,76 @@ def visualize(request):
         "suggestions": suggestions,
     }
     return render(request, 'visualize.html', context)
+
+#Conversion Pages
+
+def convert(request):
+    if request.method != "POST":
+        return render(request, "convert.html")
+ 
+    uploaded = request.FILES.get("uploaded_file")
+    target = request.POST.get("output_format")
+ 
+    if not uploaded:
+        return render(request, "convert.html", {"error": "Choose a file to convert."})
+    if target not in OUTPUT_TYPES:
+        return render(request, "convert.html", {"error": "Choose a format to convert to."})
+ 
+    base_name, ext = os.path.splitext(uploaded.name)
+    ext = ext.lower()
+ 
+    # Read the uploaded file into a DataFrame
+    try:
+        if ext == ".csv":
+            df = pd.read_csv(uploaded)
+        elif ext == ".xlsx":
+            df = pd.read_excel(uploaded)
+        elif ext == ".json":
+            df = pd.read_json(uploaded)
+        else:
+            return render(request, "convert.html",
+                {"error": "Unsupported file type. Use .xlsx, .csv or .json."})
+    except Exception:
+        return render(request, "convert.html",
+            {"error": "That file could not be read. Check that it is a valid " + ext + " file."})
+ 
+    # Write it out in the chosen format
+    if target == "csv":
+        content = df.to_csv(index=False).encode("utf-8-sig")  # utf-8-sig so Excel reads accents correctly
+    elif target == "xlsx":
+        buffer = io.BytesIO()
+        df.to_excel(buffer, index=False)
+        content = buffer.getvalue()
+    else:  # json
+        content = df.to_json(orient="records", indent=2, force_ascii=False).encode("utf-8")
+ 
+    response = HttpResponse(content, content_type=OUTPUT_TYPES[target])
+    response["Content-Disposition"] = f'attachment; filename="{base_name}.{target}"'
+    return response
+
+def create_user(request):
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "")
+
+        if not username or not password:
+            messages.error(request, "All fields are required.")
+            return redirect("createuser")
+
+        if login_data.objects.filter(name__iexact=username).exists():
+            messages.error(request, "Username already exists.")
+            return redirect("createuser")
+
+        login_data.objects.create(
+            name=username,
+            password=password,
+        )
+
+        messages.success(request, "Account created successfully!")
+        return redirect("createuser")
+
+    users = login_data.objects.only("empid", "name", "password").order_by("empid")
+    return render(request, "createuser.html", {"users": users})
+
+def homepage(request):
+    return render(request, "homepage.html")

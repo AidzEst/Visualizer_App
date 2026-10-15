@@ -1,0 +1,404 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="{% static 'Images/logo2.png' %}">
+    <title>Atena Analytics | Connection through wisdom</title>
+
+    <!-- Fonts and Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary: #F1700D;
+            --primary-dark: #c75b08;
+            --amber: #fdc22f;
+            --honey: #f8bd05;
+            --secondary: #6b5b45;
+            --dark: #2b1a05;
+            --cream: #fff6dc;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--dark);
+            background-color: white;
+            overflow-x: hidden;
+        }
+
+        a:focus-visible { outline: 3px solid var(--dark); outline-offset: 3px; }
+
+        /* The logo PNG has a lot of empty canvas around the wordmark.
+           This crops it so the wordmark fills its box. */
+        .logo-crop {
+            display: block;
+            width: var(--logo-w, 140px);
+            aspect-ratio: 1870 / 625;
+            overflow: hidden;
+        }
+        .logo-crop img {
+            display: block;
+            width: 102.67%;
+            max-width: none;
+            margin-left: -1.34%;
+            margin-top: -14.44%;
+        }
+
+        /* Navigation */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 8%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 1px solid #f5ead0;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2.5rem;
+            list-style: none;
+            align-items: center;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--secondary);
+            font-weight: 500;
+            transition: 0.2s;
+            font-size: 0.95rem;
+        }
+        .nav-links a:hover { color: var(--primary); }
+
+        .nav-links a.btn-login {
+            background: var(--primary);
+            color: white;
+            padding: 0.7rem 1.8rem;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: 0.3s;
+            box-shadow: 0 4px 12px rgba(241, 112, 13, 0.25);
+        }
+        .nav-links a.btn-login:hover {
+            background: var(--primary-dark);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 6rem 8% 8rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: radial-gradient(circle at top right, var(--cream) 0%, #ffffff 55%);
+            gap: 4rem;
+        }
+
+        .hero-text { flex: 1; max-width: 600px; }
+
+        .hero-text h1 {
+            font-size: 3.8rem;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+        .hero-text h1 span { color: var(--primary); }
+
+        .hero-text p {
+            font-size: 1.15rem;
+            color: var(--secondary);
+            margin-bottom: 2.5rem;
+            max-width: 500px;
+        }
+
+        .main-cta {
+            padding: 1.1rem 2.2rem;
+            font-size: 1.1rem;
+            background: var(--dark);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: 0.3s;
+            display: inline-block;
+        }
+        .main-cta:hover {
+            transform: translateY(-3px);
+            background: #000;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
+        }
+
+        /* CSS dashboard mockup (no image needed) */
+        .hero-visual {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            perspective: 1200px;
+        }
+
+        .mock-window {
+            width: 100%;
+            max-width: 550px;
+            height: 380px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 40px 80px rgba(43, 26, 5, 0.18);
+            border: 1px solid #efe3c4;
+            overflow: hidden;
+            transform: rotateY(-15deg) rotateX(5deg);
+            transition: 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .mock-window:hover { transform: rotateY(0deg) rotateX(0deg) scale(1.02); }
+
+        .window-header {
+            background: #fffaf0;
+            padding: 14px;
+            border-bottom: 1px solid #efe3c4;
+            display: flex;
+            gap: 8px;
+        }
+        .dot { width: 12px; height: 12px; border-radius: 50%; }
+        .dot-1 { background: #ff5f56; }
+        .dot-2 { background: #ffbd2e; }
+        .dot-3 { background: #27c93f; }
+
+        .window-content { padding: 25px; }
+
+        .mock-nav {
+            height: 25px;
+            width: 100%;
+            background: #fff3d1;
+            margin-bottom: 25px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            padding-left: 10px;
+        }
+        .mock-nav::after { content: ''; width: 40%; height: 8px; background: #f0d58a; border-radius: 4px; }
+
+        .mock-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+
+        /* mimics the real yellow Atena sidebar */
+        .mock-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: var(--amber);
+            border-radius: 12px;
+            padding: 15px 0;
+        }
+        .mock-item { height: 12px; background: rgba(255, 255, 255, 0.7); border-radius: 0 6px 6px 0; }
+        .mock-item.active { background: var(--primary); height: 14px; }
+
+        .mock-chart-container {
+            height: 160px;
+            background: #fffaf0;
+            border: 1px dashed #e8d49a;
+            border-radius: 12px;
+            display: flex;
+            align-items: flex-end;
+            padding: 15px;
+            gap: 10px;
+        }
+        .mock-bar {
+            flex: 1;
+            background: var(--amber);
+            border-radius: 4px 4px 2px 2px;
+            animation: grow 1.5s ease-out forwards;
+            transform-origin: bottom;
+        }
+        @keyframes grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+        /* Meaning band */
+        .meaning {
+            padding: 4rem 8%;
+            background: var(--amber);
+            text-align: center;
+        }
+        .meaning h2 { font-size: 2rem; margin-bottom: 0.8rem; letter-spacing: -0.01em; }
+        .meaning p { max-width: 60ch; margin: 0 auto; font-size: 1.1rem; }
+
+        /* Features Section */
+        .features { padding: 6rem 8%; background: #fff; }
+
+        .section-title { text-align: center; margin-bottom: 4rem; }
+        .section-title h2 { font-size: 2.2rem; margin-bottom: 1rem; }
+        .section-title p { color: var(--secondary); }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2.5rem;
+        }
+
+        .feature-card {
+            padding: 3rem 2rem;
+            border-radius: 24px;
+            background: #fff;
+            border: 1px solid #f5ead0;
+            transition: 0.3s;
+            text-align: center;
+        }
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(43, 26, 5, 0.07);
+            border-color: var(--primary);
+        }
+        .feature-card h3 { margin-bottom: 0.6rem; }
+        .feature-card p { color: var(--secondary); }
+
+        .icon-box {
+            width: 70px;
+            height: 70px;
+            background: var(--cream);
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 20px;
+            margin: 0 auto 1.5rem;
+            font-size: 1.8rem;
+        }
+
+        footer {
+            background: var(--dark);
+            color: #cdbb98;
+            padding: 4rem 8%;
+            text-align: center;
+        }
+        footer .logo-crop { --logo-w: 170px; margin: 0 auto 1.5rem; }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .hero { flex-direction: column; text-align: center; padding-top: 4rem; }
+            .hero-text { max-width: 100%; }
+            .hero-text h1 { font-size: 3rem; }
+            .hero-text p { margin: 0 auto 2.5rem; }
+            .hero-visual { perspective: none; width: 100%; }
+            .mock-window { transform: none; }
+        }
+        @media (max-width: 640px) {
+            .nav-links { gap: 1.2rem; }
+            .nav-links li:not(:last-child) { display: none; }
+            .hero-text h1 { font-size: 2.4rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            html { scroll-behavior: auto; }
+            .mock-bar { animation: none; }
+            .mock-window, .feature-card, .main-cta, .btn-login { transition: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <a href="#" class="logo-crop" aria-label="Atena Analytics home">
+            <img src="{% static 'Images/logo (2).png' %}" alt="Atena Analytics">
+        </a>
+        <ul class="nav-links">
+            <li><a href="#about">About</a></li>
+            <li><a href="#features">Features</a></li>
+            <li><a href="{% url 'loginpage' %}" class="btn-login">System Login</a></li>
+        </ul>
+    </nav>
+
+    <header class="hero">
+        <div class="hero-text">
+            <h1>Connection through <span>wisdom.</span></h1>
+            <p>Atena Analytics brings your spreadsheets together in one place. Import a file, clean up the data, and turn it into charts you can read at a glance.</p>
+            <a href="{% url 'loginpage' %}" class="main-cta">Log in to get started <i class="fas fa-chevron-right" style="margin-left: 10px; font-size: 0.9rem;"></i></a>
+        </div>
+
+        <div class="hero-visual">
+            <!-- CSS-ONLY MOCKUP WINDOW -->
+            <div class="mock-window" aria-hidden="true">
+                <div class="window-header">
+                    <div class="dot dot-1"></div>
+                    <div class="dot dot-2"></div>
+                    <div class="dot dot-3"></div>
+                </div>
+                <div class="window-content">
+                    <div class="mock-nav"></div>
+                    <div class="mock-grid">
+                        <div class="mock-sidebar">
+                            <div class="mock-item active" style="width: 90%;"></div>
+                            <div class="mock-item" style="width: 70%;"></div>
+                            <div class="mock-item" style="width: 80%;"></div>
+                            <div class="mock-item" style="width: 60%;"></div>
+                            <div class="mock-item" style="width: 85%;"></div>
+                        </div>
+                        <div class="mock-chart-container">
+                            <div class="mock-bar" style="height: 40%; opacity: 0.5;"></div>
+                            <div class="mock-bar" style="height: 60%; opacity: 0.7;"></div>
+                            <div class="mock-bar" style="height: 85%;"></div>
+                            <div class="mock-bar" style="height: 50%; opacity: 0.6;"></div>
+                            <div class="mock-bar" style="height: 95%; background: var(--primary);"></div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 25px; display: flex; gap: 15px;">
+                        <div style="flex:1; height: 45px; background: #fff3d1; border-radius: 8px;"></div>
+                        <div style="flex:1; height: 45px; background: #fff3d1; border-radius: 8px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section class="meaning" id="about">
+        <h2>What Atena means</h2>
+        <p>Atena stands for connection through wisdom. Like cells in a honeycomb, every file, table and chart fits against the next, and together they show you something no single sheet could.</p>
+    </section>
+
+    <section class="features" id="features">
+        <div class="section-title">
+            <h2>From raw files to clear answers</h2>
+            <p>Everything you need to understand your data.</p>
+        </div>
+
+        <div class="grid">
+            <div class="feature-card">
+                <div class="icon-box"><i class="fas fa-chart-column"></i></div>
+                <h3>Visualize</h3>
+                <p>Import an .xlsx or .csv file and see your numbers as charts that are easy to read and share.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="icon-box"><i class="fas fa-broom"></i></div>
+                <h3>Data cleaning</h3>
+                <p>Fix gaps, duplicates and messy entries so you can trust what your charts are telling you.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="icon-box"><i class="fas fa-right-left"></i></div>
+                <h3>File conversion</h3>
+                <p>Switch your data between file formats without opening another program.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <a href="#" class="logo-crop" aria-label="Back to top">
+            <img src="{% static 'Images/logo (2).png' %}" alt="Atena Analytics">
+        </a>
+        <p>&copy; 2026 Atena Analytics. All rights reserved.</p>
+        <div style="margin-top: 15px; font-size: 0.85rem;">
+            Visualize &bull; Clean &bull; Convert
+        </div>
+    </footer>
+
+</body>
+</html>
